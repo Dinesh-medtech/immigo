@@ -5,11 +5,11 @@ on:
     branches: [main]
 
 jobs:
-  Acabot:
+  Immigo:
     uses: ./.github/workflows/db.yml
     with:
       AWSDefaultRegion: us-east-1
       EnvironmentName: Dev
       ProjectName: immigo
-      # parameters: "EnvironmentName=Dev ProjectName=immigo DBInstanceIdentifier=Acabot DBClusterIdentifier=Acabot EnableBacktrack=true Engine=aurora-postgresql DBEngineVersion=15.4 DBName=acabotdb DBUserName=AN24_Acabot MinCapacity=0.5 MaxCapacity=1 PrimaryRegion=us-east-1 SecondaryRegion=us-east-2 BuildHash=${{github.sha}}"
+      # parameters: "EnvironmentName=Dev ProjectName=immigo DBInstanceIdentifier=Immigo DBClusterIdentifier=Immigo EnableBacktrack=true Engine=aurora-postgresql DBEngineVersion=15.4 DBName=immigodb DBUserName=AN24_Immigo MinCapacity=0.5 MaxCapacity=1 PrimaryRegion=us-east-1 SecondaryRegion=us-east-2 BuildHash=${{github.sha}}"
     secrets: inherit
