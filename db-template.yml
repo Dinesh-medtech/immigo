@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Aurora RDS Cluster for the project.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Description: Name of the project.
+  EnvironmentName:
+    Type: String
+    Description: Environment (e.g., dev, prod).
+  DBName:
+    Type: String
+    Description: Database Name.
+  DBUserName:
+    Type: String
+    Description: Master Username for the Database.
+  DBEngineVersion:
+    Type: String
+    Default: "13.7"
+    Description: Version of the database engine.
+  DBPort:
+    Type: Number
+    Default: 5432
+    Description: Port number for the database.
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VPC ID where the database is located.
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnet IDs for the DB subnet group.
+  KmsKeyId:
+    Type: String
+    Description: KMS Key ID for encryption.
+
+Resources:
+  DBSecretsManager:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${ProjectName}/${EnvironmentName}/DB"
+      Description: Database credentials
+      GenerateSecretString:
+        SecretStringTemplate: '{"username": "${DBUserName}"}'
+        GenerateStringKey: password
+        PasswordLength: 25
+        ExcludePunctuation: True
+
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Aurora DB subnet group
+      SubnetIds: !Ref SubnetIds
+
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      Engine: aurora-postgresql
+      EngineVersion: !Ref DBEngineVersion
+      DatabaseName: !Ref DBName
+      MasterUsername: !Join ['', ['{{resolve:secretsmanager:', !Ref DBSecretsManager, ':SecretString:username}}']]
+      MasterUserPassword: !Join ['', ['{{resolve:secretsmanager:', !Ref DBSecretsManager, ':SecretString:password}}']]
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VpcSecurityGroupIds: [!Ref ClusterSecurityGroup]
+      StorageEncrypted: true
+      KmsKeyId: !Ref KmsKeyId
+      Port: !Ref DBPort
+
+  ClusterSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: DB security group
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: TCP
+          FromPort: !Ref DBPort
+          ToPort: !Ref DBPort
+          CidrIp: 0.0.0.0/0  # Adjust as needed
+
+Outputs:
+  DBClusterEndpoint:
+    Description: Cluster endpoint
+    Value: !GetAtt DBCluster.Endpoint.Address
