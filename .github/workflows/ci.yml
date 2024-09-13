@@ -1,95 +1,99 @@
 name: CI Pipeline
+
 on:
   workflow_call:
     inputs:
       AWSDefaultRegion:
-        required: false
+        required: true
         type: string
       EnvironmentName:
-        required: false
+        required: true
         type: string
       ProjectName:
-        required: false
+        required: true
         type: string
       parameters:
         required: false
         type: string
+      S3BucketName:
+        required: true
+        type: string
       SmallCaseEnvironment:
         required: true
         type: string
+      # RestrictedEmaildomain:
+      #   required: true
+      #   type: string
 
 jobs:
-  Deploy_BackEnd:
+  Deploy_Infra:
     runs-on: ubuntu-latest
     environment: "Development"
     env:
-      AWS_OIDC_ROLE_ARN_NP: "${{ secrets.AWS_OIDC_ROLE_ARN_NP }}"
-      AWS_ACCOUNT_NUMBER_NP: "${{ secrets.AWS_ACCOUNT_NUMBER_NP }}"
-      SERVERLESS_ACCESS_KEY: "${{ secrets.SERVERLESS_ACCESS_KEY }}"
       AWS_DEFAULT_REGION: ${{ inputs.AWSDefaultRegion }}
       ENV: ${{ inputs.EnvironmentName }}
-      SMALLCASEENV: ${{inputs.SmallCaseEnvironment}}
+      SMALLCASEENV: ${{ inputs.SmallCaseEnvironment }}
       PROJECT_NAME: ${{ inputs.ProjectName }}
-      PARAMETERS: ${{inputs.parameters}}
-      AWS_ACCESS_KEY_ID: "${{ secrets.DEV_AWS_ACCESS_KEY_ID }}"
-      AWS_SECRET_ACCESS_KEY: "${{ secrets.DEV_AWS_SECRET_ACCESS_KEY }}"
+      PARAMETERS: ${{ inputs.parameters }}
+      # RestrictedEmaildomain: ${{ inputs.RestrictedEmaildomain }}
+
+      AWS_SECRET_ACARIN_OIDC_ROLE: "${{ secrets.AWS_SECRET_ACARIN_OIDC_ROLE }}"
+      API_BASE_URL: "${{ secrets.API_BASE_URL }}"
+
     permissions:
       id-token: write
       contents: read
+
     steps:
-      - name: Print all the github actions events
-        uses: hmarr/debug-action@v2
-        
-      - name: checkout application repo
+      - name: Checkout Application Repo
         uses: actions/checkout@v4
-        
-      - name: Setup SAM cli
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-          
-      - name: Install dependencies
+
+      - name: Setup SAM CLI
+        uses: aws-actions/setup-sam@v2
+
+      - name: Install Node.js Dependencies and Build Frontend
         run: |
-            python -m pip install --upgrade pip
-            pip install flake8 pytest
-            pip install pytest-cov
-            if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        shell: bash
-        
-      - name: Lint with flake8
-        run: |
-            # stop the build if there are Python syntax errors or undefined names
-            flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-            # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
-            flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-        shell: bash
-        
-      - uses: aws-actions/setup-sam@v2
-        
-      - name: Configure AWS credentials
+          cd packages/frontend
+          npm install --legacy-peer-deps
+          npm run build
+
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN_NP }}
+          role-to-assume: ${{ env.AWS_SECRET_ACARIN_OIDC_ROLE }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-session-name: "GitHubActions"
 
-      - name: Assume Role
-        id: assume-role
-        run: |
-          ROLE_CREDS=$(aws sts assume-role \
-            --role-arn $AWS_OIDC_ROLE_ARN_NP \
-            --role-session-name GitHubActionsSession)
-          echo "role-access-key=$(echo $ROLE_CREDS | jq -r '.Credentials.AccessKeyId')" >> $GITHUB_ENV
-          echo "role-secret-key=$(echo $ROLE_CREDS | jq -r '.Credentials.SecretAccessKey')" >> $GITHUB_ENV
-          echo "role-session-token=$(echo $ROLE_CREDS | jq -r '.Credentials.SessionToken')" >> $GITHUB_ENV
-          
-      - name: Serverless APIs Deployment
-        uses: serverless/github-action@v3.2
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Create ECR Repository
+        uses: int128/create-ecr-repository-action@v1
+        id: create-ecr-repo
         with:
-          args: -c "cd ./packages/backend && node --version && npm install && npm install --save-dev serverless-python-requirements@latest && serverless plugin install -n serverless-python-requirements && python --version && pip install -r requirements.txt && serverless deploy --stage ${{env.SMALLCASEENV}} --param='EnvironmentName=${{ env.ENV }}'"
-          entrypoint: /bin/sh
+          repository: ${{ inputs.ProjectName }}-frontend
+          public: false
+
+      - name: Build, Tag, and Push Image to Amazon ECR
+        id: build-image
         env:
-          LOG_LEVEL: debug
-          AWS_ACCESS_KEY_ID: "${{ env.role-access-key }}"
-          AWS_SECRET_ACCESS_KEY: "${{ env.role-secret-key }}"
-          AWS_SESSION_TOKEN: ${{ env.role-session-token }}
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+          REPO_NAME: ${{ steps.create-ecr-repo.outputs.repository-uri }}
+        run: |
+          cd packages/frontend
+          docker build -f Dockerfile --build-arg NEXT_PUBLIC_API_BASE_URL=${{ env.API_BASE_URL }} \
+            # --build-arg NEXT_PUBLIC_RESTRICTED_EMAIL_DOMAINS=${{ env.RestrictedEmaildomain }} \
+            --build-arg NODE_ENV=${{ env.SMALLCASEENV }} \
+            -t $REPO_NAME:$IMAGE_TAG .
+          docker push $REPO_NAME:$IMAGE_TAG
+          echo "image=$REPO_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster ${{ inputs.ProjectName }}-cluster \
+            --service ${{ inputs.ProjectName }}-service \
+            --force-new-deployment \
+            --region ${{ env.AWS_DEFAULT_REGION }} \
+            --image ${{ steps.build-image.outputs.image }}
