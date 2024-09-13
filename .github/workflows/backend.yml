@@ -24,54 +24,71 @@ jobs:
     runs-on: ubuntu-latest
     environment: "Development"
     env:
-      AWS_OIDC_ROLE_ARN_NP: "${{ secrets.AWS_OIDC_ROLE_ARN_NP }}"
-      AWS_ACCOUNT_NUMBER_NP: "${{ secrets.AWS_ACCOUNT_NUMBER_NP }}"
       SERVERLESS_ACCESS_KEY: "${{ secrets.SERVERLESS_ACCESS_KEY }}"
       AWS_DEFAULT_REGION: ${{ inputs.AWSDefaultRegion }}
       ENV: ${{ inputs.EnvironmentName }}
-      SMALLCASEENV: ${{ inputs.SmallCaseEnvironment }}
+      SMALLCASEENV: ${{inputs.SmallCaseEnvironment}}
       PROJECT_NAME: ${{ inputs.ProjectName }}
-      PARAMETERS: ${{ inputs.parameters }}
+      PARAMETERS: ${{inputs.parameters}}
       AWS_ACCESS_KEY_ID: "${{ secrets.DEV_AWS_ACCESS_KEY_ID }}"
       AWS_SECRET_ACCESS_KEY: "${{ secrets.DEV_AWS_SECRET_ACCESS_KEY }}"
     permissions:
       id-token: write
       contents: read
-
     steps:
-      - name: Checkout Repository
+      - name: Print all the github actions events
+        uses: hmarr/debug-action@v2
+
+      - name: checkout application repo
         uses: actions/checkout@v4
-        
-      - name: Setup Python for SAM CLI
+
+      - name: Setup SAM cli
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-          
-      - name: Install Dependencies
+
+      - name: Install dependencies
         run: |
             python -m pip install --upgrade pip
-            pip install flake8 pytest pytest-cov
+            pip install flake8 pytest
+            pip install pytest-cov
             if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        shell: bash
 
       - name: Lint with flake8
         run: |
+            # stop the build if there are Python syntax errors or undefined names
             flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+            # exit-zero treats all errors as warnings. The GitHub editor is 127 chars wide
             flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        shell: bash
 
-      - name: Configure AWS Credentials
+      - uses: aws-actions/setup-sam@v2
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           role-to-assume: ${{ env.AWS_OIDC_ROLE_ARN_NP }}
           aws-region: ${{ env.AWS_DEFAULT_REGION }}
           role-session-name: "GitHubActions"
 
+      - name: Assume Role
+        id: assume-role
+        run: |
+          ROLE_CREDS=$(aws sts assume-role \
+            --role-arn $AWS_OIDC_ROLE_ARN_NP \
+            --role-session-name GitHubActionsSession)
+          echo "role-access-key=$(echo $ROLE_CREDS | jq -r '.Credentials.AccessKeyId')" >> $GITHUB_ENV
+          echo "role-secret-key=$(echo $ROLE_CREDS | jq -r '.Credentials.SecretAccessKey')" >> $GITHUB_ENV
+          echo "role-session-token=$(echo $ROLE_CREDS | jq -r '.Credentials.SessionToken')" >> $GITHUB_ENV
+          
       - name: Serverless APIs Deployment
         uses: serverless/github-action@v3.2
         with:
-          args: |
-            cd ./packages/backend
-            npm install
-            npm install --save-dev serverless-python-requirements@latest
-            serverless plugin install -n serverless-python-requirements
-            pip install -r requirements.txt
-            serverless deploy --stage ${{env.SMALLCASEENV}} --param="EnvironmentName=${{ env.ENV }}"
+          args: -c "cd ./packages/backend && node --version && npm install && npm install --save-dev serverless-python-requirements@latest && serverless plugin install -n serverless-python-requirements && python --version && pip install -r requirements.txt && serverless deploy --stage ${{env.SMALLCASEENV}} --param='EnvironmentName=${{ env.ENV }}'"
+          entrypoint: /bin/sh
+        env:
+          LOG_LEVEL: debug
+          AWS_ACCESS_KEY_ID: "${{ env.role-access-key }}"
+          AWS_SECRET_ACCESS_KEY: "${{ env.role-secret-key }}"
+          AWS_SESSION_TOKEN: ${{ env.role-session-token }}
