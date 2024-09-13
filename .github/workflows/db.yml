@@ -54,5 +54,5 @@ jobs:
               --resolve-s3 \
               --no-fail-on-empty-changeset \
               --parameter-overrides 'ProjectName=${{inputs.ProjectName}} ${{inputs.PARAMETERS}}' \
-              --tags CreatedBy=Acabot-DB \
+              --tags CreatedBy=Immigo-DB \
               --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM
