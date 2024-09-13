@@ -31,9 +31,9 @@ jobs:
       - name: Setup SAM CLI
         uses: aws-actions/setup-sam@v2
 
-      # # Uncomment and remove this step once the issue is resolved
-      # - name: Temporary fix for SAM cryptography issue
-      #   run: $(dirname $(readlink $(which sam)))/pip install --force-reinstall "cryptography==38.0.4"
+      # remove this step if the issue is resolved
+      - name: Temporary fix for SAM cryptography issue
+        run: $(dirname $(readlink $(which sam)))/pip install --force-reinstall "cryptography==38.0.4"
         
       - name: Validate SAM Template
         run: sam validate
