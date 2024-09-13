@@ -6,7 +6,7 @@ on:
 
 jobs:
   Acabot:
-    uses: ./.github/workflows/backend.yml
+    uses: ./.github/workflows/ecs.yml
     with:
       AWSDefaultRegion: us-east-1
       EnvironmentName: Dev
