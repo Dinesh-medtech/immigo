@@ -1,5 +1,4 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Transform: AWS::Serverless-2016-10-31
 Description: >
   Template description
   Last Modified: 
@@ -12,209 +11,537 @@ Parameters:
   ProjectName:
     Description: Project Name
     Type: String
-  VpcId:
-    Description: VPC ID where ECS Cluster will be deployed
+  latestImageUri:
+    Description: Image URI
     Type: String
-  SubnetIds:
-    Description: Subnets where ECS tasks will run
-    Type: CommaDelimitedList
-  DesiredTaskCount:
-    Description: Number of tasks to run
-    Type: Number
-    Default: 1
-  InstanceType:
-    Description: EC2 Instance Type for ECS Instances
+  CognitoUserPoolID:
+    Description: Cognito Userpool ID
     Type: String
-    Default: t3.medium
-  ContainerImage:
-    Description: Docker container image for the ECS task
+  UserPoolProviderURL:
+    Description: Cognito Userpool Provider URL
     Type: String
-  ContainerPort:
-    Description: Port on which container listens
-    Type: Number
-    Default: 80
+  CognitoClientID:
+    Description: Cognito Client ID
+    Type: String
+  CognitoClientSecretID:
+    Description: Cognito Client Secret ID
+    Type: String
+  CognitoCredentialsClientID:
+    Description: Cognito Credentials Client Secret ID
+    Type: String
+
+Mappings:
+  ConfigMap:
+    Dev:
+      Platform: dev
+      VpcId: vpc-072b69f6c8e1b45f0
+      SubnetIds: 'subnet-02867b2c648a47a8a,subnet-000f3833371ac91d6'
+      VpcCidr: '10.1.0.0/16'
+      ApiEndpoint: "https://uf07snqrul.execute-api.us-east-1.amazonaws.com/dev"
+      NextAuthUrl: "https://dev.partnergenie.ai"
+      AuthSecret: "salse_is_the_secret_ingredient"
+      CognitoOAuthUrl: "https://partnergeniedev.auth.us-east-1.amazoncognito.com/oauth2/authorize"
+      CredentialsClientID: "kqdkiuhfnlpvo6b6m6rep8hmj"
+    Test:
+      Platform: test
+      VpcId: vpc-072b69f6c8e1b45f0
+      SubnetIds: 'subnet-02867b2c648a47a8a,subnet-000f3833371ac91d6'
+      VpcCidr: '10.1.0.0/16'
+      ApiEndpoint: "https://niscfkef7d.execute-api.us-east-1.amazonaws.com/test"
+      # ApiEndpoint: "https://uf07snqrul.execute-api.us-east-1.amazonaws.com/dev"
+      NextAuthUrl: "https://test.partnergenie.ai"
+      AuthSecret: "salse_is_the_secret_ingredient"
+      CognitoOAuthUrl: "https://partnergenietest.auth.us-east-1.amazoncognito.com/oauth2/authorize"
+      domain: 'test.partnergenie.ai'
+      elasticSearchdomain: 'test.elasticsearch.partnergenie.ai'
+      CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
+    Prod:
+      Platform: prod
+      NextAuthUrl: "https://partnergenie.ai"
+      AuthSecret: "salse_is_the_secret_ingredient"
+      CognitoOAuthUrl: "https://partnergenieauth.us-east-1.amazoncognito.com/oauth2/authorize"
+      CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
+
+Conditions:
+  isTest:
+    Fn::Equals:
+      - Ref: EnvironmentName
+      - Test
 
 Resources:
-  ECSCluster:
-    Type: AWS::ECS::Cluster
-    Properties:
-      ClusterName: !Sub "${ProjectName}-${EnvironmentName}-cluster"
+  # WebAppS3Bucket:
+  #   Type: AWS::S3::Bucket
+  #   Properties:
+  #     BucketName: !Sub "genie-frontend-webapp"
+  #     VersioningConfiguration:
+  #       Status: Enabled
+  #     WebsiteConfiguration:
+  #       IndexDocument: index.html
+  #       ErrorDocument: index.html
+  #     OwnershipControls:
+  #       Rules:
+  #         - ObjectOwnership: ObjectWriter
+  #     PublicAccessBlockConfiguration:
+  #       BlockPublicAcls: false
+  #       BlockPublicPolicy: false
+  #       IgnorePublicAcls: false
+  #       RestrictPublicBuckets: false
 
-  ECSExecutionRole:
+  # WebAppS3BucketPolicy:
+  #   Type: 'AWS::S3::BucketPolicy'
+  #   Properties:
+  #     Bucket: !Ref WebAppS3Bucket
+  #     PolicyDocument:
+  #       Version: 2012-10-17
+  #       Statement:
+  #         - Sid: PublicReadForGetBucketObjects
+  #           Effect: Allow
+  #           Principal: '*'
+  #           Action: 's3:GetObject'
+  #           Resource: !Join 
+  #             - ''
+  #             - - 'arn:aws:s3:::'
+  #               - !Ref WebAppS3Bucket
+  #               - /*
+
+  ContainerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub SG-Genie-Container-${EnvironmentName}
+      GroupName: !Sub SG-Genie-Container-${EnvironmentName}
+      VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3000
+          ToPort: 3000
+          SourceSecurityGroupId: !If
+                      - isTest
+                      - !ImportValue Public-Partner-Genie-Alb-test-sg
+                      - !ImportValue Public-Partner-Genie-Alb-sg
+        - IpProtocol: "-1"
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  EFSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: !Sub SG-Genie-EFS-${EnvironmentName}
+      GroupName: !Sub SG-Genie-EFS-${EnvironmentName}
+      VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !GetAtt ContainerSecurityGroup.GroupId
+        - IpProtocol: "-1"
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+        - IpProtocol: "-1"
+          FromPort: -1
+          ToPort: -1
+          CidrIp: 0.0.0.0/0
+
+  ExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub "${ProjectName}-${EnvironmentName}-ecs-execution-role"
+      RoleName: !Join ["-", ["Genie", ExecutionRole, !Ref EnvironmentName]]
       AssumeRolePolicyDocument:
-        Version: "2012-10-17"
         Statement:
           - Effect: Allow
             Principal:
               Service: ecs-tasks.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: ECSExecutionPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:BatchGetImage
-                  - ecr:GetAuthorizationToken
-                  - logs:CreateLogStream
-                  - logs:PutLogEvents
-                Resource: "*"
+            Action: "sts:AssumeRole"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      Path: "/"
 
-  ECSContainerSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
+  TaskRole:
+    Type: AWS::IAM::Role
     Properties:
-      GroupDescription: Security Group for ECS Containers
-      VpcId: !Ref VpcId
-      SecurityGroupIngress:
-        - IpProtocol: "TCP"
-          FromPort: !Ref ContainerPort
-          ToPort: !Ref ContainerPort
-          CidrIp: "0.0.0.0/0"
-      Tags:
-        - Key: Name
-          Value: !Sub "SG-${ProjectName}-ECS-Container-${EnvironmentName}"
-
-  ECSTaskDefinition:
-    Type: AWS::ECS::TaskDefinition
-    Properties:
-      Family: !Sub "${ProjectName}-${EnvironmentName}-task"
-      ExecutionRoleArn: !GetAtt ECSExecutionRole.Arn
-      NetworkMode: awsvpc
-      RequiresCompatibilities:
-        - FARGATE
-      Cpu: "256"
-      Memory: "512"
-      ContainerDefinitions:
-        - Name: !Sub "${ProjectName}-container"
-          Image: !Ref ContainerImage
-          PortMappings:
-            - ContainerPort: !Ref ContainerPort
-          Essential: true
-          LogConfiguration:
-            LogDriver: awslogs
-            Options:
-              awslogs-group: !Sub "/ecs/${ProjectName}-${EnvironmentName}"
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-
-  ECSService:
-    Type: AWS::ECS::Service
-    Properties:
-      Cluster: !Ref ECSCluster
-      TaskDefinition: !Ref ECSTaskDefinition
-      DesiredCount: !Ref DesiredTaskCount
-      LaunchType: FARGATE
-      NetworkConfiguration:
-        AwsvpcConfiguration:
-          Subnets: !Ref SubnetIds
-          SecurityGroups:
-            - !Ref ECSContainerSecurityGroup
-          AssignPublicIp: ENABLED
-      ServiceName: !Sub "${ProjectName}-${EnvironmentName}-service"
-      LoadBalancers:
-        - ContainerName: !Sub "${ProjectName}-container"
-          ContainerPort: !Ref ContainerPort
-          TargetGroupArn: !Ref TargetGroup
-
-  ECSLoadBalancer:
-    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
-    Properties:
-      Name: !Sub "${ProjectName}-${EnvironmentName}-alb"
-      Subnets: !Ref SubnetIds
-      SecurityGroups:
-        - !Ref ECSContainerSecurityGroup
-      Scheme: internet-facing
-      LoadBalancerAttributes:
-        - Key: idle_timeout.timeout_seconds
-          Value: "60"
-      Tags:
-        - Key: Name
-          Value: !Sub "${ProjectName}-${EnvironmentName}-alb"
+      RoleName:
+        !Join [
+          '-',
+          [
+            "Genie",
+            TaskRole,
+            !Ref EnvironmentName,
+          ],
+        ]
+      AssumeRolePolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: '/'
 
   TargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
     Properties:
-      Name: !Sub "${ProjectName}-${EnvironmentName}-tg"
-      Port: !Ref ContainerPort
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: '/'
+      HealthCheckTimeoutSeconds: 5
+      UnhealthyThresholdCount: 2
+      HealthyThresholdCount: 2
+      Name:
+        !Join [
+          '-',
+          [Genie, TG, !Ref EnvironmentName],
+        ]
+      Port: 3000
       Protocol: HTTP
-      VpcId: !Ref VpcId
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60 # default is 300
       TargetType: ip
-      HealthCheckPath: "/"
-      HealthCheckProtocol: HTTP
-      Matcher:
-        HttpCode: "200"
+      VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
       Tags:
         - Key: Name
-          Value: !Sub "${ProjectName}-${EnvironmentName}-tg"
+          Value: !Sub Genie-TargetGroup-${EnvironmentName}
 
-  ECSAutoScalingRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: !Sub "${ProjectName}-${EnvironmentName}-ecs-autoscaling-role"
-      AssumeRolePolicyDocument:
-        Version: "2012-10-17"
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: application-autoscaling.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: ECSAutoScalingPolicy
-          PolicyDocument:
-            Version: "2012-10-17"
-            Statement:
-              - Effect: Allow
-                Action:
-                  - cloudwatch:PutMetricAlarm
-                  - cloudwatch:DescribeAlarms
-                  - cloudwatch:DeleteAlarms
-                Resource: "*"
+  # ElasticSearchTargetGroup:
+  #   Type: AWS::ElasticLoadBalancingV2::TargetGroup
+  #   Properties:
+  #     HealthCheckIntervalSeconds: 10
+  #     HealthCheckPath: '/'
+  #     HealthCheckTimeoutSeconds: 5
+  #     UnhealthyThresholdCount: 2
+  #     HealthyThresholdCount: 2
+  #     Name:
+  #       !Join [
+  #         '-',
+  #         [GenieElasticSearch, TG, !Ref EnvironmentName],
+  #       ]
+  #     Port: 9200
+  #     Protocol: HTTP
+  #     TargetGroupAttributes:
+  #       - Key: deregistration_delay.timeout_seconds
+  #         Value: 60 # default is 300
+  #     TargetType: ip
+  #     VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub GenieElasticSearch-TargetGroup-${EnvironmentName}
 
-  ECSAutoScalingPolicy:
-    Type: AWS::ApplicationAutoScaling::ScalingPolicy
+  ListenerRule:
+    Type: AWS::ElasticLoadBalancingV2::Listener
     Properties:
-      PolicyName: !Sub "${ProjectName}-${EnvironmentName}-autoscaling-policy"
-      PolicyType: TargetTrackingScaling
-      ResourceId: !Sub "service/${ECSCluster}/${ECSService}"
-      ScalableDimension: ecs:service:DesiredCount
-      ServiceNamespace: ecs
-      TargetTrackingScalingPolicyConfiguration:
-        PredefinedMetricSpecification:
-          PredefinedMetricType: ECSServiceAverageCPUUtilization
-        TargetValue: 50.0
+      DefaultActions:
+        - TargetGroupArn: !Ref TargetGroup
+          Type: forward
+      LoadBalancerArn: !If
+                      - isTest
+                      - !ImportValue Public-Partner-Genie-Alb-Arn-test
+                      - !ImportValue Public-Partner-Genie-Alb-Arn
+      Port: 80
+      Protocol: HTTP
+
+  # ElasticSearchListenerRule:
+  #   Type: AWS::ElasticLoadBalancingV2::Listener
+  #   Properties:
+  #     DefaultActions:
+  #       - TargetGroupArn: !Ref ElasticSearchTargetGroup
+  #         Type: forward
+  #     LoadBalancerArn: !If
+  #                     - isTest
+  #                     - !ImportValue Public-Partner-Genie-Alb-Arn-test
+  #                     - !ImportValue Public-Partner-Genie-Alb-Arn
+  #     Port: 9200
+  #     Protocol: HTTP
+
+  Cluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Join ["-", [Genie, Cluster, !Ref EnvironmentName]]
+      Tags:
+        - Key: Name
+          Value: !Sub Genie-Cluster-${EnvironmentName}
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ["", [/ecs/, Genie , TaskDefinition, !Ref EnvironmentName]]
+      RetentionInDays: 30
+
+  ElasticSearchLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Join ["", [/ecs/, Genie , ElasticSearch, !Ref EnvironmentName]]
+      RetentionInDays: 30
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    # Makes sure the log group is created before it is used.
+    DependsOn: LogGroup
+    Properties:
+      # Name of the task definition. Subsequent versions of the task definition are grouped together under this name.
+      Family: !Join ["-", [Genie, TaskDefinition, !Ref EnvironmentName]]
+      # awsvpc is required for Fargate
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      # 256 (.25 vCPU) - Available memory values: 0.5GB, 1GB, 2GB
+      # 512 (.5 vCPU) - Available memory values: 1GB, 2GB, 3GB, 4GB
+      # 1024 (1 vCPU) - Available memory values: 2GB, 3GB, 4GB, 5GB, 6GB, 7GB, 8GB
+      # 2048 (2 vCPU) - Available memory values: Between 4GB and 16GB in 1GB increments
+      # 4096 (4 vCPU) - Available memory values: Between 8GB and 30GB in 1GB increments
+      Cpu: 256
+      # 0.5GB, 1GB, 2GB - Available cpu values: 256 (.25 vCPU)
+      # 1GB, 2GB, 3GB, 4GB - Available cpu values: 512 (.5 vCPU)
+      # 2GB, 3GB, 4GB, 5GB, 6GB, 7GB, 8GB - Available cpu values: 1024 (1 vCPU)
+      # Between 4GB and 16GB in 1GB increments - Available cpu values: 2048 (2 vCPU)
+      # Between 8GB and 30GB in 1GB increments - Available cpu values: 4096 (4 vCPU)
+      Memory: 0.5GB
+      # A role needed by ECS.
+      # "The ARN of the task execution role that containers in this task can assume. All containers in this task are granted the permissions that are specified in this role."
+      # "There is an optional task execution IAM role that you can specify with Fargate to allow your Fargate tasks to make API calls to Amazon ECR."
+      ExecutionRoleArn: !Ref ExecutionRole
+      # "The Amazon Resource Name (ARN) of an AWS Identity and Access Management (IAM) role that grants containers in the task permission to call AWS APIs on your behalf."
+      TaskRoleArn: !Ref TaskRole
+      ContainerDefinitions:
+        - Name: !Join ["-", ["Genie", !Ref EnvironmentName]]
+          Image: !Ref latestImageUri
+          PortMappings:
+            - ContainerPort: 3000
+          # Send logs to CloudWatch Logs
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-region: !Ref AWS::Region
+              awslogs-group: !Ref LogGroup
+              awslogs-stream-prefix: ecs
+          Environment:
+            - Name: "NEXT_PUBLIC_API_BASE_URL"
+              Value: !FindInMap [ConfigMap, !Ref EnvironmentName, ApiEndpoint]
+            - Name: "COGNITO_POOL_ID"
+              Value: !Ref CognitoUserPoolID
+            - Name: "COGNITO_REGION"
+              Value: !Sub ${AWS::Region}
+            - Name: "COGNITO_ISSUER"
+              Value: !Ref UserPoolProviderURL
+            - Name: "COGNITO_CLIENT_ID"
+              Value: !Ref CognitoClientID
+            - Name: "NEXT_PUBLIC_COGNITO_CLIENT_ID1"
+              Value: !Ref CognitoClientID
+            - Name: "COGNITO_CLIENT_SECRET"
+              Value: !Ref CognitoClientSecretID
+            - Name: "COGNITO_CREDENTIAL_CLIENT_ID"
+              Value: !Ref CognitoCredentialsClientID
+            - Name: "NEXTAUTH_URL"
+              Value: !FindInMap [ConfigMap, !Ref EnvironmentName, NextAuthUrl]
+            - Name: "AUTH_SECRET"
+              Value: !FindInMap [ConfigMap, !Ref EnvironmentName, AuthSecret]
+            - Name: "COGNITO_OAUTH_URL"
+              Value: !FindInMap [ConfigMap, !Ref EnvironmentName, CognitoOAuthUrl]
+
+      Tags:
+        - Key: Name
+          Value: !Sub Genie-TaskDefinition-${EnvironmentName}
+      RuntimePlatform:
+        OperatingSystemFamily: LINUX
+
+  Service:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Join ["-", ["Genie" , Service, !Ref EnvironmentName]]
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref TaskDefinition
+      EnableECSManagedTags: true
+      PropagateTags: "SERVICE"
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+      DesiredCount: 1
+      # This may need to be adjusted if the container takes a while to start up
+      HealthCheckGracePeriodSeconds: 500
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          # change to DISABLED if you're using private subnets that have access to a NAT gateway
+          AssignPublicIp: ENABLED
+          Subnets: !Split [",", !FindInMap [ConfigMap, !Ref EnvironmentName, SubnetIds]]
+          SecurityGroups:
+            - !Ref ContainerSecurityGroup
+      LoadBalancers:
+        - ContainerName: !Join ["-", ["Genie", !Ref EnvironmentName ]]
+          ContainerPort: 3000
+          TargetGroupArn: !Ref TargetGroup
+      Tags:
+        - Key: Name
+          Value: !Join ["-", [Genie , Service, !Ref EnvironmentName]]
+
+  EFSFileSystem:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      ThroughputMode: elastic
+
+  MountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SubnetId: !ImportValue Genie-Public-Subnet1
+      SecurityGroups:
+      - !Ref EFSSecurityGroup
+
+  MountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+      SubnetId: !ImportValue Genie-Public-Subnet2
+      SecurityGroups:
+      - !Ref EFSSecurityGroup
+
+  EFSAccessPoint:
+    Type: 'AWS::EFS::AccessPoint'
+    Properties:
+      FileSystemId: !Ref EFSFileSystem
+
+  ElasticSearchTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: !Join ["-", [ElasticSearch, TaskDefinition, !Ref EnvironmentName]]
+      Cpu: '4096'
+      Memory: '8192'
+      NetworkMode: 'awsvpc'
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref ExecutionRole
+      TaskRoleArn: !Ref TaskRole
+      ContainerDefinitions:
+        - Name: 'elasticsearch'
+          Image: 'docker.elastic.co/elasticsearch/elasticsearch:7.10.0'
+          Cpu: 4096
+          Memory: 8192
+          PortMappings:
+            - Name: 'elasticsearch-9200-tcp'
+              ContainerPort: 9200
+              HostPort: 9200
+              Protocol: 'tcp'
+              AppProtocol: 'http'
+            - Name: 'elasticsearch-tcp-9300'
+              ContainerPort: 9300
+              HostPort: 9300
+              Protocol: 'tcp'
+          Essential: true
+          Environment:
+            - Name: 'discovery.type'
+              Value: 'single-node'
+            - Name: 'cluster.name'
+              Value: !Join ["-", [ElasticSearch, TaskDefinition, !Ref EnvironmentName]]
+            - Name: 'bootstrap.memory_lock'
+              Value: 'true'
+          MountPoints:
+            - SourceVolume: !Sub 'pg-vol-elasticsearch-${EnvironmentName}'
+              ContainerPath: '/var/lib/elasticsearch/data'
+          LogConfiguration:
+            LogDriver: 'awslogs'
+            Options:
+              awslogs-group: !Ref ElasticSearchLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+          HealthCheck:
+            Command: 
+              - 'CMD-SHELL'
+              - 'curl http://localhost:9200'
+            Interval: 30
+            Timeout: 10
+            Retries: 5
+      Volumes:
+        - Name: !Sub 'pg-vol-elasticsearch-${EnvironmentName}'
+          EfsVolumeConfiguration:
+            FileSystemId: !Ref EFSFileSystem
+            RootDirectory: '/'
+            TransitEncryption: 'ENABLED'
+            AuthorizationConfig:
+              AccessPointId: !GetAtt EFSAccessPoint.AccessPointId
+              Iam: 'DISABLED'
+      # EphemeralStorage:
+      #   SizeInGiB: 21
+      RuntimePlatform:
+        CpuArchitecture: 'X86_64'
+        OperatingSystemFamily: 'LINUX'
+      Tags:
+        - Key: 'Name'
+          Value: !Sub 'elasticsearch-${EnvironmentName}'
+
+  # ElasticSearchService:
+  #   Type: AWS::ECS::Service
+  #   Properties:
+  #     ServiceName: !Join ["-", ["ElasticSearch" , Service, !Ref EnvironmentName]]
+  #     Cluster: !Ref Cluster
+  #     TaskDefinition: !Ref ElasticSearchTaskDefinition
+  #     EnableECSManagedTags: true
+  #     PropagateTags: "SERVICE"
+  #     DeploymentConfiguration:
+  #       MinimumHealthyPercent: 100
+  #       MaximumPercent: 200
+  #     DesiredCount: 1
+  #     # This may need to be adjusted if the container takes a while to start up
+  #     HealthCheckGracePeriodSeconds: 500
+  #     LaunchType: FARGATE
+  #     NetworkConfiguration:
+  #       AwsvpcConfiguration:
+  #         # change to DISABLED if you're using private subnets that have access to a NAT gateway
+  #         AssignPublicIp: ENABLED
+  #         Subnets: !Split [",", !FindInMap [ConfigMap, !Ref EnvironmentName, SubnetIds]]
+  #         SecurityGroups:
+  #           - !Ref ContainerSecurityGroup
+  #     LoadBalancers:
+  #       - ContainerName: 'elasticsearch'
+  #         ContainerPort: 9200
+  #         TargetGroupArn: !Ref ElasticSearchTargetGroup
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Join ["-", [GenieElasticSearch , Service, !Ref EnvironmentName]]
+
+# Outputs:
+#   WebsiteURL:
+#     Value: !GetAtt
+#       - WebAppS3Bucket
+#       - WebsiteURL
+#     Description: URL for website hosted on S3
 
 Outputs:
-  ECSClusterName:
-    Description: Name of the ECS Cluster
-    Value: !Ref ECSCluster
+  ECSCluster:
+    Description: ECSCluster
+    Value: !Ref Cluster
     Export:
-      Name: !Sub "${ProjectName}-${EnvironmentName}-ECSClusterName"
+      Name: !Sub
+        - ${ProjectName}-ECSClusterName-${EnvironmentName}
+        - EnvironmentName: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
 
-  ECSServiceName:
-    Description: Name of the ECS Service
-    Value: !Ref ECSService
+  ECSTaskRole:
+    Description: TaskRole
+    Value: !Ref TaskRole
     Export:
-      Name: !Sub "${ProjectName}-${EnvironmentName}-ECSServiceName"
+      Name: !Sub
+        - ${ProjectName}-ECSTaskRole-${EnvironmentName}
+        - EnvironmentName: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
 
-  LoadBalancerDNS:
-    Description: DNS name of the Application Load Balancer
-    Value: !GetAtt ECSLoadBalancer.DNSName
+  ECSExecutionRole:
+    Description: ECSExecutionRole
+    Value: !Ref ExecutionRole
     Export:
-      Name: !Sub "${ProjectName}-${EnvironmentName}-LoadBalancerDNS"
+      Name: !Sub
+        - ${ProjectName}-ECSExecutionRole-${EnvironmentName}
+        - EnvironmentName: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
 
-  TargetGroupArn:
-    Description: ARN of the Target Group
-    Value: !Ref TargetGroup
+  ECSSG:
+    Description: ContainerSecurityGroup
+    Value: !Ref ContainerSecurityGroup
     Export:
-      Name: !Sub "${ProjectName}-${EnvironmentName}-TargetGroupArn"
+      Name: !Sub
+        - ${ProjectName}-ECSContainerSG-${EnvironmentName}
+        - EnvironmentName: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
 
-  ECSExecutionRoleArn:
-    Description: ECS Execution Role ARN
-    Value: !GetAtt ECSExecutionRole.Arn
+  ECSSGID:
+    Description: ContainerSecurityGroupID
+    Value: !GetAtt ContainerSecurityGroup.GroupId
     Export:
-      Name: !Sub "${ProjectName}-${EnvironmentName}-ECSExecutionRoleArn"
+      Name: !Sub
+        - ${ProjectName}-ECSContainerSGID-${EnvironmentName}
+        - EnvironmentName: !FindInMap [ConfigMap, !Ref EnvironmentName, Platform]
