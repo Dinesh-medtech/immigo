@@ -1,7 +1,9 @@
 AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
 Description: >
-  ECS Cluster Template
-  Author: Your Name
+  Template description
+  Last Modified: 
+  Author: Vignesh S
 
 Parameters:
   EnvironmentName:
