@@ -185,3 +185,34 @@ Resources:
         PredefinedMetricSpecification:
           PredefinedMetricType: ECSServiceAverageCPUUtilization
         TargetValue: 50.0
+
+Outputs:
+  ECSClusterName:
+    Description: Name of the ECS Cluster
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub "${ProjectName}-${EnvironmentName}-ECSClusterName"
+
+  ECSServiceName:
+    Description: Name of the ECS Service
+    Value: !Ref ECSService
+    Export:
+      Name: !Sub "${ProjectName}-${EnvironmentName}-ECSServiceName"
+
+  LoadBalancerDNS:
+    Description: DNS name of the Application Load Balancer
+    Value: !GetAtt ECSLoadBalancer.DNSName
+    Export:
+      Name: !Sub "${ProjectName}-${EnvironmentName}-LoadBalancerDNS"
+
+  TargetGroupArn:
+    Description: ARN of the Target Group
+    Value: !Ref TargetGroup
+    Export:
+      Name: !Sub "${ProjectName}-${EnvironmentName}-TargetGroupArn"
+
+  ECSExecutionRoleArn:
+    Description: ECS Execution Role ARN
+    Value: !GetAtt ECSExecutionRole.Arn
+    Export:
+      Name: !Sub "${ProjectName}-${EnvironmentName}-ECSExecutionRoleArn"
