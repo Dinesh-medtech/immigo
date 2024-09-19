@@ -89,11 +89,16 @@ jobs:
           docker push $REPO_NAME:$IMAGE_TAG
           echo "image=$REPO_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
 
-      - name: Deploy to ECS
+      - name: Deploy Cloudformation template
         run: |
-          aws ecs update-service \
-            --cluster ${{ inputs.ProjectName }}-cluster \
-            --service ${{ inputs.ProjectName }}-service \
-            --force-new-deployment \
-            --region ${{ env.AWS_DEFAULT_REGION }} \
-            --image ${{ steps.build-image.outputs.image }}
+            sam deploy --stack-name ${{ env.PROJECT_NAME }}-${{env.ENV}}\
+              --region ${{env.AWS_DEFAULT_REGION}} \
+              --no-disable-rollback \
+              --no-confirm-changeset \
+              --resolve-s3 \
+              --no-fail-on-empty-changeset \
+              --parameter-overrides 'ProjectName=${{inputs.PROJECT_NAME}} ElasticSearchPrivateIp=${{env.ElasticSearchPrivateIp}} CognitoClientSecret=${{env.CognitoClientSecret}} LinkedInClientID=${{env.LinkedInClientID}} LinkedInClientSecret=${{env.LinkedInClientSecret}} DBPassword=${{env.DBPassword}} GoogleClientID=${{env.GoogleClientID}} GoogleClientSecret=${{env.GoogleClientSecret}} latestImageUri=${{ steps.build-image.outputs.image }} BuildHash=${{env.GITHUB_SHA}} AllowedOrigin=* ${{inputs.PARAMETERS}}' \
+              --tags CreatedBy=Acabot-DB \
+              --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM
+
+      
