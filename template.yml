@@ -38,9 +38,9 @@ Mappings:
       SubnetIds: 'subnet-02867b2c648a47a8a,subnet-000f3833371ac91d6'
       VpcCidr: '10.1.0.0/16'
       ApiEndpoint: "https://uf07snqrul.execute-api.us-east-1.amazonaws.com/dev"
-      NextAuthUrl: "https://dev.partnergenie.ai"
+      NextAuthUrl: "https://dev.partnerimmigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
-      CognitoOAuthUrl: "https://partnergeniedev.auth.us-east-1.amazoncognito.com/oauth2/authorize"
+      CognitoOAuthUrl: "https://partnerimmigodev.auth.us-east-1.amazoncognito.com/oauth2/authorize"
       CredentialsClientID: "kqdkiuhfnlpvo6b6m6rep8hmj"
     Test:
       Platform: test
@@ -49,17 +49,17 @@ Mappings:
       VpcCidr: '10.1.0.0/16'
       ApiEndpoint: "https://niscfkef7d.execute-api.us-east-1.amazonaws.com/test"
       # ApiEndpoint: "https://uf07snqrul.execute-api.us-east-1.amazonaws.com/dev"
-      NextAuthUrl: "https://test.partnergenie.ai"
+      NextAuthUrl: "https://test.partnerimmigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
-      CognitoOAuthUrl: "https://partnergenietest.auth.us-east-1.amazoncognito.com/oauth2/authorize"
-      domain: 'test.partnergenie.ai'
-      elasticSearchdomain: 'test.elasticsearch.partnergenie.ai'
+      CognitoOAuthUrl: "https://partnerimmigotest.auth.us-east-1.amazoncognito.com/oauth2/authorize"
+      domain: 'test.partnerimmigo.ai'
+      elasticSearchdomain: 'test.elasticsearch.partnerimmigo.ai'
       CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
     Prod:
       Platform: prod
-      NextAuthUrl: "https://partnergenie.ai"
+      NextAuthUrl: "https://partnerimmigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
-      CognitoOAuthUrl: "https://partnergenieauth.us-east-1.amazoncognito.com/oauth2/authorize"
+      CognitoOAuthUrl: "https://partnerimmigoauth.us-east-1.amazoncognito.com/oauth2/authorize"
       CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
 
 Conditions:
@@ -72,7 +72,7 @@ Resources:
   # WebAppS3Bucket:
   #   Type: AWS::S3::Bucket
   #   Properties:
-  #     BucketName: !Sub "genie-frontend-webapp"
+  #     BucketName: !Sub "immigo-frontend-webapp"
   #     VersioningConfiguration:
   #       Status: Enabled
   #     WebsiteConfiguration:
@@ -107,8 +107,8 @@ Resources:
   ContainerSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub SG-Genie-Container-${EnvironmentName}
-      GroupName: !Sub SG-Genie-Container-${EnvironmentName}
+      GroupDescription: !Sub SG-immigo-Container-${EnvironmentName}
+      GroupName: !Sub SG-immigo-Container-${EnvironmentName}
       VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
       SecurityGroupIngress:
         - IpProtocol: tcp
@@ -116,8 +116,8 @@ Resources:
           ToPort: 3000
           SourceSecurityGroupId: !If
                       - isTest
-                      - !ImportValue Public-Partner-Genie-Alb-test-sg
-                      - !ImportValue Public-Partner-Genie-Alb-sg
+                      - !ImportValue Public-Partner-immigo-Alb-test-sg
+                      - !ImportValue Public-Partner-immigo-Alb-sg
         - IpProtocol: "-1"
           FromPort: -1
           ToPort: -1
@@ -126,8 +126,8 @@ Resources:
   EFSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: !Sub SG-Genie-EFS-${EnvironmentName}
-      GroupName: !Sub SG-Genie-EFS-${EnvironmentName}
+      GroupDescription: !Sub SG-immigo-EFS-${EnvironmentName}
+      GroupName: !Sub SG-immigo-EFS-${EnvironmentName}
       VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
       SecurityGroupIngress:
         - IpProtocol: "tcp"
@@ -147,7 +147,7 @@ Resources:
   ExecutionRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ["-", ["Genie", ExecutionRole, !Ref EnvironmentName]]
+      RoleName: !Join ["-", ["immigo", ExecutionRole, !Ref EnvironmentName]]
       AssumeRolePolicyDocument:
         Statement:
           - Effect: Allow
@@ -165,7 +165,7 @@ Resources:
         !Join [
           '-',
           [
-            "Genie",
+            "immigo",
             TaskRole,
             !Ref EnvironmentName,
           ],
@@ -189,7 +189,7 @@ Resources:
       Name:
         !Join [
           '-',
-          [Genie, TG, !Ref EnvironmentName],
+          [immigo, TG, !Ref EnvironmentName],
         ]
       Port: 3000
       Protocol: HTTP
@@ -200,7 +200,7 @@ Resources:
       VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
       Tags:
         - Key: Name
-          Value: !Sub Genie-TargetGroup-${EnvironmentName}
+          Value: !Sub immigo-TargetGroup-${EnvironmentName}
 
   # ElasticSearchTargetGroup:
   #   Type: AWS::ElasticLoadBalancingV2::TargetGroup
@@ -213,7 +213,7 @@ Resources:
   #     Name:
   #       !Join [
   #         '-',
-  #         [GenieElasticSearch, TG, !Ref EnvironmentName],
+  #         [immigoElasticSearch, TG, !Ref EnvironmentName],
   #       ]
   #     Port: 9200
   #     Protocol: HTTP
@@ -224,7 +224,7 @@ Resources:
   #     VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
   #     Tags:
   #       - Key: Name
-  #         Value: !Sub GenieElasticSearch-TargetGroup-${EnvironmentName}
+  #         Value: !Sub immigoElasticSearch-TargetGroup-${EnvironmentName}
 
   ListenerRule:
     Type: AWS::ElasticLoadBalancingV2::Listener
@@ -234,8 +234,8 @@ Resources:
           Type: forward
       LoadBalancerArn: !If
                       - isTest
-                      - !ImportValue Public-Partner-Genie-Alb-Arn-test
-                      - !ImportValue Public-Partner-Genie-Alb-Arn
+                      - !ImportValue Public-Partner-immigo-Alb-Arn-test
+                      - !ImportValue Public-Partner-immigo-Alb-Arn
       Port: 80
       Protocol: HTTP
 
@@ -247,29 +247,29 @@ Resources:
   #         Type: forward
   #     LoadBalancerArn: !If
   #                     - isTest
-  #                     - !ImportValue Public-Partner-Genie-Alb-Arn-test
-  #                     - !ImportValue Public-Partner-Genie-Alb-Arn
+  #                     - !ImportValue Public-Partner-immigo-Alb-Arn-test
+  #                     - !ImportValue Public-Partner-immigo-Alb-Arn
   #     Port: 9200
   #     Protocol: HTTP
 
   Cluster:
     Type: AWS::ECS::Cluster
     Properties:
-      ClusterName: !Join ["-", [Genie, Cluster, !Ref EnvironmentName]]
+      ClusterName: !Join ["-", [immigo, Cluster, !Ref EnvironmentName]]
       Tags:
         - Key: Name
-          Value: !Sub Genie-Cluster-${EnvironmentName}
+          Value: !Sub immigo-Cluster-${EnvironmentName}
 
   LogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Join ["", [/ecs/, Genie , TaskDefinition, !Ref EnvironmentName]]
+      LogGroupName: !Join ["", [/ecs/, immigo , TaskDefinition, !Ref EnvironmentName]]
       RetentionInDays: 30
 
   ElasticSearchLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
-      LogGroupName: !Join ["", [/ecs/, Genie , ElasticSearch, !Ref EnvironmentName]]
+      LogGroupName: !Join ["", [/ecs/, immigo , ElasticSearch, !Ref EnvironmentName]]
       RetentionInDays: 30
 
   TaskDefinition:
@@ -278,7 +278,7 @@ Resources:
     DependsOn: LogGroup
     Properties:
       # Name of the task definition. Subsequent versions of the task definition are grouped together under this name.
-      Family: !Join ["-", [Genie, TaskDefinition, !Ref EnvironmentName]]
+      Family: !Join ["-", [immigo, TaskDefinition, !Ref EnvironmentName]]
       # awsvpc is required for Fargate
       NetworkMode: awsvpc
       RequiresCompatibilities:
@@ -302,7 +302,7 @@ Resources:
       # "The Amazon Resource Name (ARN) of an AWS Identity and Access Management (IAM) role that grants containers in the task permission to call AWS APIs on your behalf."
       TaskRoleArn: !Ref TaskRole
       ContainerDefinitions:
-        - Name: !Join ["-", ["Genie", !Ref EnvironmentName]]
+        - Name: !Join ["-", ["immigo", !Ref EnvironmentName]]
           Image: !Ref latestImageUri
           PortMappings:
             - ContainerPort: 3000
@@ -339,14 +339,14 @@ Resources:
 
       Tags:
         - Key: Name
-          Value: !Sub Genie-TaskDefinition-${EnvironmentName}
+          Value: !Sub immigo-TaskDefinition-${EnvironmentName}
       RuntimePlatform:
         OperatingSystemFamily: LINUX
 
   Service:
     Type: AWS::ECS::Service
     Properties:
-      ServiceName: !Join ["-", ["Genie" , Service, !Ref EnvironmentName]]
+      ServiceName: !Join ["-", ["immigo" , Service, !Ref EnvironmentName]]
       Cluster: !Ref Cluster
       TaskDefinition: !Ref TaskDefinition
       EnableECSManagedTags: true
@@ -366,12 +366,12 @@ Resources:
           SecurityGroups:
             - !Ref ContainerSecurityGroup
       LoadBalancers:
-        - ContainerName: !Join ["-", ["Genie", !Ref EnvironmentName ]]
+        - ContainerName: !Join ["-", ["immigo", !Ref EnvironmentName ]]
           ContainerPort: 3000
           TargetGroupArn: !Ref TargetGroup
       Tags:
         - Key: Name
-          Value: !Join ["-", [Genie , Service, !Ref EnvironmentName]]
+          Value: !Join ["-", [immigo , Service, !Ref EnvironmentName]]
 
   EFSFileSystem:
     Type: AWS::EFS::FileSystem
@@ -383,7 +383,7 @@ Resources:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref EFSFileSystem
-      SubnetId: !ImportValue Genie-Public-Subnet1
+      SubnetId: !ImportValue immigo-Public-Subnet1
       SecurityGroups:
       - !Ref EFSSecurityGroup
 
@@ -391,7 +391,7 @@ Resources:
     Type: AWS::EFS::MountTarget
     Properties:
       FileSystemId: !Ref EFSFileSystem
-      SubnetId: !ImportValue Genie-Public-Subnet2
+      SubnetId: !ImportValue immigo-Public-Subnet2
       SecurityGroups:
       - !Ref EFSSecurityGroup
 
@@ -496,7 +496,7 @@ Resources:
   #         TargetGroupArn: !Ref ElasticSearchTargetGroup
   #     Tags:
   #       - Key: Name
-  #         Value: !Join ["-", [GenieElasticSearch , Service, !Ref EnvironmentName]]
+  #         Value: !Join ["-", [immigoElasticSearch , Service, !Ref EnvironmentName]]
 
 # Outputs:
 #   WebsiteURL:
