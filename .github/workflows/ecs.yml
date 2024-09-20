@@ -15,9 +15,9 @@ on:
       parameters:
         required: false
         type: string
-      S3BucketName:
-        required: false
-        type: string
+      # S3BucketName:
+      #   required: false
+      #   type: string
       SmallCaseEnvironment:
         required: true
         type: string
@@ -42,7 +42,7 @@ jobs:
 
     permissions:
       id-token: write
-      contents: write
+      contents: read
 
     steps:
       - name: Checkout Application Repo
@@ -97,7 +97,7 @@ jobs:
               --no-confirm-changeset \
               --resolve-s3 \
               --no-fail-on-empty-changeset \
-              --parameter-overrides 'ProjectName=${{inputs.PROJECT_NAME}} ElasticSearchPrivateIp=${{env.ElasticSearchPrivateIp}} CognitoClientSecret=${{env.CognitoClientSecret}} LinkedInClientID=${{env.LinkedInClientID}} LinkedInClientSecret=${{env.LinkedInClientSecret}} DBPassword=${{env.DBPassword}} GoogleClientID=${{env.GoogleClientID}} GoogleClientSecret=${{env.GoogleClientSecret}} latestImageUri=${{ steps.build-image.outputs.image }} BuildHash=${{env.GITHUB_SHA}} AllowedOrigin=* ${{inputs.PARAMETERS}}' \
+              --parameter-overrides 'ProjectName=${{inputs.PROJECT_NAME}} latestImageUri=${{ steps.build-image.outputs.image }}' \
               --tags CreatedBy=Acabot-DB \
               --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM
 
