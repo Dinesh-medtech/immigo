@@ -42,7 +42,7 @@ jobs:
 
     permissions:
       id-token: write
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout Application Repo
