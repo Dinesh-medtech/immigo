@@ -38,9 +38,9 @@ Mappings:
       SubnetIds: 'subnet-02867b2c648a47a8a,subnet-000f3833371ac91d6'
       VpcCidr: '10.1.0.0/16'
       ApiEndpoint: "https://uf07snqrul.execute-api.us-east-1.amazonaws.com/dev"
-      NextAuthUrl: "https://dev.partnerimmigo.ai"
+      NextAuthUrl: "https://dev.immigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
-      CognitoOAuthUrl: "https://partnerimmigodev.auth.us-east-1.amazoncognito.com/oauth2/authorize"
+      CognitoOAuthUrl: "https://immigodev.auth.us-east-1.amazoncognito.com/oauth2/authorize"
       CredentialsClientID: "kqdkiuhfnlpvo6b6m6rep8hmj"
     Test:
       Platform: test
@@ -49,17 +49,17 @@ Mappings:
       VpcCidr: '10.1.0.0/16'
       ApiEndpoint: "https://niscfkef7d.execute-api.us-east-1.amazonaws.com/test"
       # ApiEndpoint: "https://uf07snqrul.execute-api.us-east-1.amazonaws.com/dev"
-      NextAuthUrl: "https://test.partnerimmigo.ai"
+      NextAuthUrl: "https://test.immigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
-      CognitoOAuthUrl: "https://partnerimmigotest.auth.us-east-1.amazoncognito.com/oauth2/authorize"
-      domain: 'test.partnerimmigo.ai'
-      elasticSearchdomain: 'test.elasticsearch.partnerimmigo.ai'
+      CognitoOAuthUrl: "https://immigotest.auth.us-east-1.amazoncognito.com/oauth2/authorize"
+      domain: 'test.immigo.ai'
+      elasticSearchdomain: 'test.elasticsearch.immigo.ai'
       CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
     Prod:
       Platform: prod
-      NextAuthUrl: "https://partnerimmigo.ai"
+      NextAuthUrl: "https://immigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
-      CognitoOAuthUrl: "https://partnerimmigoauth.us-east-1.amazoncognito.com/oauth2/authorize"
+      CognitoOAuthUrl: "https://immigoauth.us-east-1.amazoncognito.com/oauth2/authorize"
       CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
 
 Conditions:
@@ -116,8 +116,8 @@ Resources:
           ToPort: 3000
           SourceSecurityGroupId: !If
                       - isTest
-                      - !ImportValue Public-Partner-immigo-Alb-test-sg
-                      - !ImportValue Public-Partner-immigo-Alb-sg
+                      - !ImportValue Public-immigo-Alb-test-sg
+                      - !ImportValue Public-immigo-Alb-sg
         - IpProtocol: "-1"
           FromPort: -1
           ToPort: -1
@@ -234,8 +234,8 @@ Resources:
           Type: forward
       LoadBalancerArn: !If
                       - isTest
-                      - !ImportValue Public-Partner-immigo-Alb-Arn-test
-                      - !ImportValue Public-Partner-immigo-Alb-Arn
+                      - !ImportValue Public-immigo-Alb-Arn-test
+                      - !ImportValue Public-immigo-Alb-Arn
       Port: 80
       Protocol: HTTP
 
@@ -247,8 +247,8 @@ Resources:
   #         Type: forward
   #     LoadBalancerArn: !If
   #                     - isTest
-  #                     - !ImportValue Public-Partner-immigo-Alb-Arn-test
-  #                     - !ImportValue Public-Partner-immigo-Alb-Arn
+  #                     - !ImportValue Public-immigo-Alb-Arn-test
+  #                     - !ImportValue Public-immigo-Alb-Arn
   #     Port: 9200
   #     Protocol: HTTP
 
@@ -266,11 +266,6 @@ Resources:
       LogGroupName: !Join ["", [/ecs/, immigo , TaskDefinition, !Ref EnvironmentName]]
       RetentionInDays: 30
 
-  ElasticSearchLogGroup:
-    Type: AWS::Logs::LogGroup
-    Properties:
-      LogGroupName: !Join ["", [/ecs/, immigo , ElasticSearch, !Ref EnvironmentName]]
-      RetentionInDays: 30
 
   TaskDefinition:
     Type: AWS::ECS::TaskDefinition
@@ -373,100 +368,6 @@ Resources:
         - Key: Name
           Value: !Join ["-", [immigo , Service, !Ref EnvironmentName]]
 
-  EFSFileSystem:
-    Type: AWS::EFS::FileSystem
-    Properties:
-      Encrypted: true
-      ThroughputMode: elastic
-
-  MountTarget1:
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref EFSFileSystem
-      SubnetId: !ImportValue immigo-Public-Subnet1
-      SecurityGroups:
-      - !Ref EFSSecurityGroup
-
-  MountTarget2:
-    Type: AWS::EFS::MountTarget
-    Properties:
-      FileSystemId: !Ref EFSFileSystem
-      SubnetId: !ImportValue immigo-Public-Subnet2
-      SecurityGroups:
-      - !Ref EFSSecurityGroup
-
-  EFSAccessPoint:
-    Type: 'AWS::EFS::AccessPoint'
-    Properties:
-      FileSystemId: !Ref EFSFileSystem
-
-  ElasticSearchTaskDefinition:
-    Type: 'AWS::ECS::TaskDefinition'
-    Properties:
-      Family: !Join ["-", [ElasticSearch, TaskDefinition, !Ref EnvironmentName]]
-      Cpu: '4096'
-      Memory: '8192'
-      NetworkMode: 'awsvpc'
-      RequiresCompatibilities:
-        - FARGATE
-      ExecutionRoleArn: !Ref ExecutionRole
-      TaskRoleArn: !Ref TaskRole
-      ContainerDefinitions:
-        - Name: 'elasticsearch'
-          Image: 'docker.elastic.co/elasticsearch/elasticsearch:7.10.0'
-          Cpu: 4096
-          Memory: 8192
-          PortMappings:
-            - Name: 'elasticsearch-9200-tcp'
-              ContainerPort: 9200
-              HostPort: 9200
-              Protocol: 'tcp'
-              AppProtocol: 'http'
-            - Name: 'elasticsearch-tcp-9300'
-              ContainerPort: 9300
-              HostPort: 9300
-              Protocol: 'tcp'
-          Essential: true
-          Environment:
-            - Name: 'discovery.type'
-              Value: 'single-node'
-            - Name: 'cluster.name'
-              Value: !Join ["-", [ElasticSearch, TaskDefinition, !Ref EnvironmentName]]
-            - Name: 'bootstrap.memory_lock'
-              Value: 'true'
-          MountPoints:
-            - SourceVolume: !Sub 'pg-vol-elasticsearch-${EnvironmentName}'
-              ContainerPath: '/var/lib/elasticsearch/data'
-          LogConfiguration:
-            LogDriver: 'awslogs'
-            Options:
-              awslogs-group: !Ref ElasticSearchLogGroup
-              awslogs-region: !Ref AWS::Region
-              awslogs-stream-prefix: ecs
-          HealthCheck:
-            Command: 
-              - 'CMD-SHELL'
-              - 'curl http://localhost:9200'
-            Interval: 30
-            Timeout: 10
-            Retries: 5
-      Volumes:
-        - Name: !Sub 'pg-vol-elasticsearch-${EnvironmentName}'
-          EfsVolumeConfiguration:
-            FileSystemId: !Ref EFSFileSystem
-            RootDirectory: '/'
-            TransitEncryption: 'ENABLED'
-            AuthorizationConfig:
-              AccessPointId: !GetAtt EFSAccessPoint.AccessPointId
-              Iam: 'DISABLED'
-      # EphemeralStorage:
-      #   SizeInGiB: 21
-      RuntimePlatform:
-        CpuArchitecture: 'X86_64'
-        OperatingSystemFamily: 'LINUX'
-      Tags:
-        - Key: 'Name'
-          Value: !Sub 'elasticsearch-${EnvironmentName}'
 
   # ElasticSearchService:
   #   Type: AWS::ECS::Service
