@@ -36,7 +36,7 @@ Mappings:
       Platform: dev
       VpcId: vpc-072b69f6c8e1b45f0
       SubnetIds: 'subnet-02867b2c648a47a8a,subnet-000f3833371ac91d6'
-      VpcCidr: '10.1.0.0/16'
+      # VpcCidr: '10.1.0.0/16'
       ApiEndpoint: "https://uf07snqrul.execute-api.us-east-1.amazonaws.com/dev"
       NextAuthUrl: "https://dev.immigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
@@ -46,7 +46,7 @@ Mappings:
       Platform: test
       VpcId: vpc-072b69f6c8e1b45f0
       SubnetIds: 'subnet-02867b2c648a47a8a,subnet-000f3833371ac91d6'
-      VpcCidr: '10.1.0.0/16'
+      # VpcCidr: '10.1.0.0/16'
       ApiEndpoint: "https://niscfkef7d.execute-api.us-east-1.amazonaws.com/test"
       # ApiEndpoint: "https://uf07snqrul.execute-api.us-east-1.amazonaws.com/dev"
       NextAuthUrl: "https://test.immigo.ai"
