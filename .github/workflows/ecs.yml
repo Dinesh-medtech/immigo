@@ -97,7 +97,7 @@ jobs:
               --no-confirm-changeset \
               --resolve-s3 \
               --no-fail-on-empty-changeset \
-              --parameter-overrides 'ProjectName=${{inputs.PROJECT_NAME}} latestImageUri=${{ steps.build-image.outputs.image }}' \
+              --parameter-overrides 'ProjectName=${{inputs.PROJECT_NAME}} latestImageUri=${{ steps.build-image.outputs.image }} ${{inputs.PARAMETERS}}' \
               --tags CreatedBy=Acabot-DB \
               --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND CAPABILITY_NAMED_IAM
 
