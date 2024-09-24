@@ -6,6 +6,7 @@ on:
 
 jobs:
   Acabot:
+    if: ${{ contains(github.ref, 'refs/heads/release/')}}
     uses: ./.github/workflows/ecs.yml
     with:
       AWSDefaultRegion: us-east-1
