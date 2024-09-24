@@ -41,7 +41,7 @@ Mappings:
       NextAuthUrl: "https://dev.immigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
       CognitoOAuthUrl: "https://immigodev.auth.us-east-1.amazoncognito.com/oauth2/authorize"
-      CredentialsClientID: "kqdkiuhfnlpvo6b6m6rep8hmj"
+      # CredentialsClientID: "kqdkiuhfnlpvo6b6m6rep8hmj"
     Test:
       Platform: test
       VpcId: vpc-072b69f6c8e1b45f0
@@ -54,13 +54,13 @@ Mappings:
       CognitoOAuthUrl: "https://immigotest.auth.us-east-1.amazoncognito.com/oauth2/authorize"
       domain: 'test.immigo.ai'
       elasticSearchdomain: 'test.elasticsearch.immigo.ai'
-      CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
+      # CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
     Prod:
       Platform: prod
       NextAuthUrl: "https://immigo.ai"
       AuthSecret: "salse_is_the_secret_ingredient"
       CognitoOAuthUrl: "https://immigoauth.us-east-1.amazoncognito.com/oauth2/authorize"
-      CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
+      # CredentialsClientID: "7oe6tuu6s8eba6ut46en8r4b30"
 
 Conditions:
   isTest:
