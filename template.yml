@@ -123,27 +123,6 @@ Resources:
           ToPort: -1
           CidrIp: 0.0.0.0/0
 
-  EFSSecurityGroup:
-    Type: AWS::EC2::SecurityGroup
-    Properties:
-      GroupDescription: !Sub SG-immigo-EFS-${EnvironmentName}
-      GroupName: !Sub SG-immigo-EFS-${EnvironmentName}
-      VpcId: !FindInMap [ConfigMap, !Ref EnvironmentName, VpcId]
-      SecurityGroupIngress:
-        - IpProtocol: "tcp"
-          FromPort: 2049
-          ToPort: 2049
-          SourceSecurityGroupId: !GetAtt ContainerSecurityGroup.GroupId
-        - IpProtocol: "-1"
-          FromPort: -1
-          ToPort: -1
-          CidrIp: 0.0.0.0/0
-      SecurityGroupEgress:
-        - IpProtocol: "-1"
-          FromPort: -1
-          ToPort: -1
-          CidrIp: 0.0.0.0/0
-
   ExecutionRole:
     Type: AWS::IAM::Role
     Properties:
