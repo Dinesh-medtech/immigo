@@ -1,0 +1,14 @@
+name: test
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  helm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check Helm version
+        run: helm version
